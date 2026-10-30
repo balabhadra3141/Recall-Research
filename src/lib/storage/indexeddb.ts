@@ -1,6 +1,10 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
 import { MemoryRecord, ResearchDelta, ResearchSession, SourceRecord } from "@/lib/types";
 
+interface StoredSourceRecord extends SourceRecord {
+  storageId?: string;
+}
+
 interface RecallDBSchema extends DBSchema {
   sessions: {
     key: string;
@@ -22,7 +26,7 @@ interface RecallDBSchema extends DBSchema {
   };
   sources: {
     key: string;
-    value: SourceRecord;
+    value: StoredSourceRecord;
     indexes: {
       "by-url": string;
     };
@@ -37,7 +41,7 @@ interface RecallDBSchema extends DBSchema {
 }
 
 const DB_NAME = "RecallResearchDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<RecallDBSchema>> | null = null;
 
@@ -48,7 +52,7 @@ function getDb(): Promise<IDBPDatabase<RecallDBSchema>> {
 
   if (!dbPromise) {
     dbPromise = openDB<RecallDBSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion) {
         // 1. Sessions store
         if (!db.objectStoreNames.contains("sessions")) {
           const sessionStore = db.createObjectStore("sessions", { keyPath: "id" });
@@ -65,9 +69,12 @@ function getDb(): Promise<IDBPDatabase<RecallDBSchema>> {
           memoryStore.createIndex("by-date", "createdAt");
         }
 
-        // 3. Sources store
+        // 3. Sources store (Upgraded in v2 to use storageId to avoid S1/S2 collisions across sessions)
+        if (oldVersion < 2 && db.objectStoreNames.contains("sources")) {
+          db.deleteObjectStore("sources");
+        }
         if (!db.objectStoreNames.contains("sources")) {
-          const sourceStore = db.createObjectStore("sources", { keyPath: "id" });
+          const sourceStore = db.createObjectStore("sources", { keyPath: "storageId" });
           sourceStore.createIndex("by-url", "url");
         }
 
@@ -103,17 +110,7 @@ export const StorageRepository = {
 
   async deleteSession(id: string): Promise<void> {
     const db = await getDb();
-    const tx = db.transaction(["sessions", "memories"], "readwrite");
-    await tx.objectStore("sessions").delete(id);
-    
-    // Also remove memories that originated exclusively from this session
-    const memories = await tx.objectStore("memories").getAll();
-    for (const mem of memories) {
-      if (mem.originSessionId === id && !mem.pinned) {
-        await tx.objectStore("memories").delete(mem.id);
-      }
-    }
-    await tx.done;
+    await db.delete("sessions", id);
   },
 
   // Memory operations
@@ -196,9 +193,18 @@ export const StorageRepository = {
     const db = await getDb();
     const tx = db.transaction("sources", "readwrite");
     for (const src of sources) {
-      await tx.store.put(src);
+      const storageRecord: StoredSourceRecord = {
+        ...src,
+        storageId: `${src.sessionIds?.[0] || "global"}_${src.id}`,
+      };
+      await tx.store.put(storageRecord);
     }
     await tx.done;
+  },
+
+  async listAllSources(): Promise<SourceRecord[]> {
+    const db = await getDb();
+    return db.getAll("sources");
   },
 
   // Delta operations
@@ -221,7 +227,7 @@ export const StorageRepository = {
     const deltas = await db.getAll("deltas");
 
     const exportPayload = {
-      version: 1,
+      version: 2,
       appName: "Recall Research",
       exportedAt: new Date().toISOString(),
       counts: {

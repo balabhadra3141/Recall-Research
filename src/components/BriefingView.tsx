@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { BriefingReport, MemoryRecord, ResearchSession } from "@/lib/types";
 import { generateMarkdownReport } from "@/lib/utils/export-markdown";
+import { useToast } from "@/components/Toast";
 import {
   Download,
   BookmarkPlus,
@@ -14,6 +15,8 @@ import {
   ArrowRight,
   Sparkles,
   BookOpen,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface BriefingViewProps {
@@ -31,20 +34,38 @@ export const BriefingView: React.FC<BriefingViewProps> = ({
   onSaveMemories,
   onTriggerRevisit,
 }) => {
+  const { showToast } = useToast();
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
 
   const handleExportMarkdown = () => {
-    const md = generateMarkdownReport(session);
-    const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `RecallResearch_${session.topicKey || "briefing"}_${new Date().toISOString().slice(0, 10)}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const md = generateMarkdownReport(session);
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `RecallResearch_${session.topicKey || "briefing"}_${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("success", "Markdown Report Exported", "Saved with complete grounded citations & metadata.");
+    } catch {
+      showToast("error", "Export Failed", "Could not generate Markdown report.");
+    }
+  };
+
+  const handleCopySummary = async () => {
+    try {
+      await navigator.clipboard.writeText(briefing.executiveSummary);
+      setCopiedSummary(true);
+      showToast("info", "Summary Copied", "Executive summary copied to clipboard.");
+      setTimeout(() => setCopiedSummary(false), 2000);
+    } catch {
+      showToast("error", "Copy Failed", "Clipboard permission denied.");
+    }
   };
 
   const handleSaveAllToMemory = async () => {
@@ -70,7 +91,10 @@ export const BriefingView: React.FC<BriefingViewProps> = ({
 
       await onSaveMemories(candidates);
       setSavedSuccess(true);
+      showToast("success", "Saved to Memory Library", `${candidates.length} findings stored in browser IndexedDB.`);
       setTimeout(() => setSavedSuccess(false), 4000);
+    } catch (err: any) {
+      showToast("error", "Save Failed", err?.message || "Failed to persist to IndexedDB");
     } finally {
       setSaving(false);
     }
@@ -82,13 +106,18 @@ export const BriefingView: React.FC<BriefingViewProps> = ({
       <div className="glass-panel rounded-2xl p-6 sm:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-xs font-semibold uppercase tracking-wider text-brand-400 px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20">
                 Evidence-Backed Briefing
               </span>
               <span className="text-xs text-slate-500">
                 {new Date(session.createdAt).toLocaleDateString()}
               </span>
+              {session.modelUsed && (
+                <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 rounded bg-surface-900 border border-slate-800">
+                  {session.modelUsed}
+                </span>
+              )}
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               {briefing.title}
@@ -140,10 +169,29 @@ export const BriefingView: React.FC<BriefingViewProps> = ({
 
         {/* Executive Summary */}
         <div className="mt-6">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5 flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-brand-400" />
-            Executive Summary
-          </h2>
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-brand-400" />
+              Executive Summary
+            </h2>
+            <button
+              onClick={handleCopySummary}
+              className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              title="Copy executive summary"
+            >
+              {copiedSummary ? (
+                <>
+                  <Check className="w-3 h-3 text-accent-emerald" />
+                  <span className="text-accent-emerald">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          </div>
           <div className="text-sm sm:text-base leading-relaxed text-slate-200 whitespace-pre-line space-y-3 font-normal">
             {briefing.executiveSummary}
           </div>
@@ -196,13 +244,16 @@ export const BriefingView: React.FC<BriefingViewProps> = ({
               <div className="flex items-center gap-2 flex-wrap pt-2.5 border-t border-slate-800/60 text-xs">
                 <span className="text-slate-500 text-[11px]">Cited Evidence:</span>
                 {finding.sourceIds.length === 0 ? (
-                  <span className="text-[11px] text-accent-amber italic">No verified sources (analytical hypothesis)</span>
+                  <span className="text-[11px] text-accent-amber italic">
+                    No verified sources (analytical hypothesis)
+                  </span>
                 ) : (
                   finding.sourceIds.map((sid) => (
                     <button
                       key={sid}
                       onClick={() => onSelectSource(sid)}
-                      className="px-2 py-0.5 rounded-md bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 font-mono text-[11px] border border-brand-500/30 transition-all"
+                      className="px-2 py-0.5 rounded-md bg-brand-500/20 hover:bg-brand-500/40 text-brand-300 font-mono text-[11px] border border-brand-500/30 transition-all cursor-pointer hover:scale-105"
+                      title={`Inspect evidence source [${sid}]`}
                     >
                       [{sid}]
                     </button>

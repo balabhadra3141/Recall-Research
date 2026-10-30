@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { MemoryRecord, ResearchSession } from "@/lib/types";
+import { MemoryRecord } from "@/lib/types";
+import { useToast } from "@/components/Toast";
+import { ConfirmationModal } from "@/components/ConfirmationModal";
 import {
   Bookmark,
   Pin,
@@ -10,9 +12,6 @@ import {
   Search,
   ExternalLink,
   Download,
-  ShieldCheck,
-  Check,
-  X,
   Info,
 } from "lucide-react";
 
@@ -31,12 +30,14 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
   onOpenSession,
   onExportBackup,
 }) => {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTopic, setSelectedTopic] = useState<string>("all");
   const [filterPinned, setFilterPinned] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [deletePendingId, setDeletePendingId] = useState<string | null>(null);
 
   const topics = Array.from(new Set(memories.map((m) => m.topicKey))).filter(Boolean);
 
@@ -61,15 +62,46 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
 
   const handleSaveEdit = async (id: string) => {
     if (!editTitle.trim()) return;
-    await onUpdateMemory(id, {
-      title: editTitle.trim(),
-      content: editContent.trim(),
-    });
-    setEditingId(null);
+    try {
+      await onUpdateMemory(id, {
+        title: editTitle.trim(),
+        content: editContent.trim(),
+      });
+      setEditingId(null);
+      showToast("success", "Memory Updated", "Changes saved to IndexedDB.");
+    } catch {
+      showToast("error", "Update Failed", "Could not save edits.");
+    }
   };
 
   const handleTogglePin = async (m: MemoryRecord) => {
-    await onUpdateMemory(m.id, { pinned: !m.pinned });
+    try {
+      await onUpdateMemory(m.id, { pinned: !m.pinned });
+      showToast("info", m.pinned ? "Memory Unpinned" : "Memory Pinned to Top");
+    } catch {
+      showToast("error", "Failed to update pin state");
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletePendingId) return;
+    try {
+      await onDeleteMemory(deletePendingId);
+      showToast("info", "Memory Removed", "Item deleted from browser IndexedDB.");
+    } catch {
+      showToast("error", "Delete Failed", "Could not remove item.");
+    } finally {
+      setDeletePendingId(null);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      await onExportBackup();
+      showToast("success", "IndexedDB Backup Exported", "Complete database downloaded as JSON.");
+    } catch {
+      showToast("error", "Export Failed", "Could not generate backup file.");
+    }
   };
 
   return (
@@ -89,8 +121,8 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={onExportBackup}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition-all"
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition-all hover:scale-[1.02]"
               title="Export complete IndexedDB backup as JSON"
             >
               <Download className="w-3.5 h-3.5" />
@@ -109,7 +141,7 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search saved facts, claims, or topics..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-surface-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
             />
           </div>
 
@@ -118,7 +150,7 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
             <select
               value={selectedTopic}
               onChange={(e) => setSelectedTopic(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-surface-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
+              className="w-full px-3 py-2.5 rounded-xl bg-surface-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
             >
               <option value="all">All Topics ({memories.length})</option>
               {topics.map((t) => (
@@ -130,7 +162,7 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
 
             <button
               onClick={() => setFilterPinned(!filterPinned)}
-              className={`p-2 rounded-xl border text-xs transition-colors shrink-0 ${
+              className={`p-2.5 rounded-xl border text-xs transition-colors shrink-0 ${
                 filterPinned
                   ? "bg-accent-amber/20 text-accent-amber border-accent-amber/40"
                   : "bg-surface-950 text-slate-400 border-slate-800 hover:text-white"
@@ -238,7 +270,7 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
                         </button>
 
                         <button
-                          onClick={() => onDeleteMemory(m.id)}
+                          onClick={() => setDeletePendingId(m.id)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                           title="Delete memory permanently from IndexedDB"
                         >
@@ -277,6 +309,16 @@ export const MemoryLibraryView: React.FC<MemoryLibraryViewProps> = ({
           })
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(deletePendingId)}
+        title="Delete Memory Record?"
+        message="This memory record will be permanently deleted from your browser's IndexedDB. This action cannot be undone."
+        confirmLabel="Delete Memory"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeletePendingId(null)}
+      />
     </div>
   );
 };

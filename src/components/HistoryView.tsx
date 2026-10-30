@@ -1,7 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { ResearchSession } from "@/lib/types";
+import { useToast } from "@/components/Toast";
+import { ConfirmationModal } from "@/components/ConfirmationModal";
 import { History, Sparkles, BookOpen, Trash2, Calendar, Globe, Cpu } from "lucide-react";
 
 interface HistoryViewProps {
@@ -17,6 +19,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   onDeleteSession,
   onTriggerRevisit,
 }) => {
+  const { showToast } = useToast();
+  const [deletePendingId, setDeletePendingId] = useState<string | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!deletePendingId) return;
+    try {
+      await onDeleteSession(deletePendingId);
+      showToast("info", "Session Deleted", "Research session removed from local history.");
+    } catch {
+      showToast("error", "Delete Failed", "Could not delete session.");
+    } finally {
+      setDeletePendingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="glass-panel rounded-2xl p-6">
@@ -69,16 +86,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => onSelectSession(sess)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200"
+                    onClick={() => {
+                      onSelectSession(sess);
+                      showToast("info", "Briefing Loaded", sess.briefing?.title || sess.question);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition-all hover:scale-105"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     <span>Open Briefing</span>
                   </button>
 
                   <button
-                    onClick={() => onTriggerRevisit(sess.topicKey, sess)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-700 to-accent-cyan hover:opacity-90 text-xs font-medium text-white shadow-glow"
+                    onClick={() => {
+                      onTriggerRevisit(sess.topicKey, sess);
+                      showToast("info", "Revisit Mode Activated", "Ready to compare against this session.");
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-700 to-accent-cyan hover:opacity-90 text-xs font-medium text-white shadow-glow transition-all hover:scale-105"
                     title="Run fresh search and calculate Research Delta"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
@@ -86,7 +109,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   </button>
 
                   <button
-                    onClick={() => onDeleteSession(sess.id)}
+                    onClick={() => setDeletePendingId(sess.id)}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                     title="Delete session from history"
                   >
@@ -111,6 +134,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           ))
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(deletePendingId)}
+        title="Delete Research Session?"
+        message="This will delete the briefing and session record from your local history. Saved memory items in your Memory Library will remain preserved."
+        confirmLabel="Delete Session"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeletePendingId(null)}
+      />
     </div>
   );
 };

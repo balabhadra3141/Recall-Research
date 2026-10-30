@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/components/Toast";
 
 export const metadata: Metadata = {
   title: "Recall Research — Research that remembers. Evidence that evolves.",
@@ -8,11 +9,13 @@ export const metadata: Metadata = {
   keywords: [
     "Recall Research",
     "Nebius",
+    "Nebius Token Factory",
     "NVIDIA Nemotron",
     "Tavily",
     "AI Research Analyst",
     "Research Delta",
     "Persistent Memory",
+    "IndexedDB",
   ],
   authors: [{ name: "Recall Research Team" }],
 };
@@ -25,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-surface-950 text-slate-100 antialiased selection:bg-brand-500 selection:text-white">
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
