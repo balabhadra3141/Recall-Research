@@ -692,7 +692,7 @@ export default function HomePage() {
                 Export Database
               </button>
               <a
-                href="https://github.com/balabalaji245/nebius-nvidia-hackathon"
+                href="https://github.com/balabhadra3141/Recall-Research"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-slate-300 transition-colors flex items-center gap-1"

@@ -6,7 +6,7 @@
 - **Track:** Best Apps and Agents
 - **Target Hackathon:** Nebius x NVIDIA Global AI Hackathon
 - **License:** MIT License (Visible in repository root)
-- **Repository:** https://github.com/your-username/recall-research *(Update with public repo link after pushing)*
+- **Repository:** https://github.com/balabhadra3141/Recall-Research
 - **Live Demo URL:** https://recall-research.vercel.app *(Update with verified deployment URL)*
 - **YouTube Demo URL:** https://youtu.be/your-demo-id *(Under 3 minutes)*
 
