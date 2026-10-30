@@ -6,7 +6,7 @@
 
 ## Inspiration
 
-When conducting deep technical investigations—such as tracking solid-state battery breakthroughs, monitoring open-weight foundation model updates, or evaluating post-quantum cryptography standards—researchers face a fundamental frustration: **every search session starts as an amnesiac blank slate**.
+When conducting deep technical investigations - such as tracking solid-state battery breakthroughs, monitoring open-weight foundation model updates, or evaluating post-quantum cryptography standards - researchers face a fundamental frustration: **every search session starts as an amnesiac blank slate**.
 
 Traditional search engines and AI wrappers treat every inquiry as if it were Day Zero. You search, read, synthesize, and close the tab. Weeks later, when returning to the same question:
 - You repeat the same queries from scratch.
